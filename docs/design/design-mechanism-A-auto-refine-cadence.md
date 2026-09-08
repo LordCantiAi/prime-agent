@@ -223,3 +223,22 @@ shared daemon is busy with live production sessions (cannot shut down). The cade
 is proven by the persisted-turn AgentSession suites (74 green at turnInterval=1, both schedulers); the
 LIVE cache-lean tail-delta emission under that cadence is proven by the monitor above. Together these
 satisfy the plan's smoke intent: cadence emits bounded tail-only deltas that are provider-cache-lean.
+
+
+================================================================================
+FINDING 2026-09-08: Why cadence needs the agent runtime loop (recorded for the e2e plan)
+================================================================================
+A bare SDK driver (createAgentSession + sequential session.prompt(...)) runs REAL canti
+model turns (4 assistant replies observed) but does NOT fire auto-refine: refine_complete=0.
+Root cause: the auto-refine boundary is driven by the AGENT-LOOP runtime (the message_end /
+shouldStopAfterTurn lifecycle where _assistantTurnsSinceAutoRefine is incremented and
+_maybeStartSerializedBackgroundPlan / _scheduleAutoRefineAfterAgentEnd run), not by the minimal
+"prompt then return" SDK path. Drives in that path never increment the cadence counter or reach the
+scheduler. => To observe a cadence firing on a REAL model you must run the proper agent runtime
+(interactive, daemon, or the agent rule/autonomous loop), not a bespoke createAgentSession().prompt loop.
+RECOMMENDED e2e (on a clean host when the shared daemon is free / on Kermit): run the fork CLI in
+interactive/daemon mode (persisted depth-0 session, autoll agent), autoRefine.reviewer=off +
+turnInterval=1, drive >=3 real prompts, and watch refine_complete events + the [harness ...] deltas
+reaching the next model request. The cadence FIRING semantics are already covered by the persisted-turn
+AgentSession suites (74 green) and the cache-lean emission shape by the live Canti monitor; this e2e run
+ties them together end-to-end.
