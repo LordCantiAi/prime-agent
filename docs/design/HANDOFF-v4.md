@@ -18,7 +18,7 @@ direct-write per-turn state feature) is DESIGNED but NOT implemented. See end.
 Fork repo      : git@github.com:LordCantiAi/prime-agent.git
 Working clone  : /home/jfgrissom/Repos/prime-agent-fork
 Branch         : implement/v4-cache-stable-harness
-HEAD           : 10c8c82  (sha 10c8c8299e0e12713210999dc74ecceb748a370d) - pushed to origin
+HEAD (read live) : run `git -C /home/jfgrissom/Repos/prime-agent-fork rev-parse HEAD` - do not hardcode.
 Upstream base  : 9c8230d (PrimeIntellect-ai/prime-agent main; this fork is post #2098-partial)
 
 Design/spec docs in the FORK (authoritative):
@@ -167,5 +167,5 @@ next turn cache-stably. Two mechanisms:
   after a build if you don't want catalog diffs committed.
 - Untracked in worktree: docs/design/cache-stable-continual-harness.md (spec) - consider committing.
 ================================================================================
-HEAD note: 10c8c82 is the authoritative live ref (see section 1). Plan v4 is complete; section 6
-(Mechanism B) is the open design item. Before resuming, `git -C ~/Repos/prime-agent-fork rev-parse HEAD`.
+HEAD note: section-2/6 are the design truth; read the live `git rev-parse HEAD` first, code hashes may
+have advanced past your copy's commit-list snapshot.
