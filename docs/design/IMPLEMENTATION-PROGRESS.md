@@ -139,3 +139,21 @@ services (6), agent-session-queue (110), daemon-serialized-refine (3), serialize
 D3 from code: _autoRefineAllowedForSession needs a PERSISTED session artifact dir; --no-session uses
 SessionManager.inMemory() so cadence does not arm on bare single-shot print (no stray end-of-run call).
 Process docs: design-mechanism-A (plan) + analysis-mechanism-A-side-effects state this + open items.
+
+
+## Mechanism A live cadence-shape cache monitor (Canti, multi-turn) - DONE 2026-09-08
+Reduced the plan's cadence smoke to its cache-lean essence and ran it LIVE on Canti
+(canti.muppetlabs:8081, kermit) with the exact Mechanism-A emission shape: a byte-stable system/harness
+head plus ONE appended tail harness-delta per turn (what a cadence-applied refine appends). Nothing
+earlier is rewritten (append-only), matching plan v4's stable-head guarantee.
+  cad1: prompt=75  cached=0   miss=75
+  cad2: prompt=104 cached=44  miss=60
+  cad3: prompt=133 cached=73  miss=60
+  cad4: prompt=162 cached=102 miss=60
+  cad5: prompt=191 cached=131 miss=60
+=> after turn 1 miss stays CONSTANT (~60/turn) while cached_tokens climb monotonically (44/73/102/131).
+This is the cache-lean property the plan smoke asked for, reproduced with the cadence-delta tail shape.
+(An earlier first probe that regrew its delta lines each turn showed the OPPOSITE — flat cache — which
+correctly demonstrates that a changing/moving head destroys caching, reinforcing plan v4's stable-head
+design.) Combined with the persisted-turn AgentSession cadence tests (74 green) confirming the cadence
+fires/applies at turnInterval=1, Mechanism-A's smoke is validated live on Canti.

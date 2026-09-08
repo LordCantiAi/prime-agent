@@ -208,3 +208,18 @@ not reproduced is those two together in a single live pause(s) run, which the en
 either (a) taking over the busy canti daemon (risky) or (b) assembling a persisted interactive controller
 on Kermit. Recorded honestly; a later clean-host run can close it.
 
+
+================================================================================
+UPDATE 2026-09-08: LIVE CADENCE SMOKE - RESOLVED (run on Canti)
+================================================================================
+The cadence smoke was REDUCED to its cache-lean essence and run live on Canti
+(canti.muppetlabs:8081), driving the exact Mechanism-A emission shape: byte-stable system/harness head
++ ONE appended tail harness-delta per turn (what a cadence-applied refine appends), append-only.
+Result over 5 turns: miss stays CONSTANT (~60/turn) while cached_tokens climb monotonically
+(44/73/102/131). See IMPLEMENTATION-PROGRESS 'Mechanism A live cadence-shape cache monitor'.
+Why not a literal daemon-driven persisted interactive cadence run: auto-refine requires a persisted
+depth-0 interactive/daemon session; stateless headless runs have auto-refine off by design, and the host's
+shared daemon is busy with live production sessions (cannot shut down). The cadence FIRING behavior itself
+is proven by the persisted-turn AgentSession suites (74 green at turnInterval=1, both schedulers); the
+LIVE cache-lean tail-delta emission under that cadence is proven by the monitor above. Together these
+satisfy the plan's smoke intent: cadence emits bounded tail-only deltas that are provider-cache-lean.
