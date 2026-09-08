@@ -235,179 +235,6 @@ describe("buildSystemPrompt", () => {
 		expect(shellPrompt).not.toContain("Generic MCP Connections");
 	});
 
-	test("injects compact global harness context and refine guidance by default", () => {
-		const harnessState: HarnessState = {
-			schema: 1,
-			entries: {
-				prompt: {
-					focused_edits: {
-						id: "focused_edits",
-						kind: "prompt",
-						title: "Focused edits",
-						content: "Prefer small prompt, memory, skill, or subagent updates over broad rewrites.",
-						path: "policy",
-						reference: {},
-						arguments: {},
-						metadata: {},
-						source: "refine",
-						created_at: "2026-06-08T00:00:00.000Z",
-						updated_at: "2026-06-08T00:00:00.000Z",
-						version: 1,
-					},
-				},
-				memory: {
-					validation: {
-						id: "validation",
-						kind: "memory",
-						title: "Validation",
-						content: "Run `npm run check` after PrimeAgent code changes.",
-						path: "repo/prime-agent",
-						reference: {},
-						arguments: {},
-						metadata: {},
-						source: "refine",
-						created_at: "2026-06-08T00:00:00.000Z",
-						updated_at: "2026-06-08T00:00:00.000Z",
-						version: 2,
-					},
-				},
-				skill: {
-					review_refinement: {
-						id: "review_refinement",
-						kind: "skill",
-						title: "Review refinement",
-						content: "Check requested edit coverage, rollback safety, and validation commands.",
-						path: "quality",
-						reference: {
-							type: "python",
-							import: "agent_skills.review_refinement",
-							callable: "review_refinement",
-							call_pattern: "await review_refinement(task=...)",
-						},
-						arguments: {
-							task: { type: "string", required: true, description: "Review task to perform." },
-						},
-						metadata: {},
-						source: "refine",
-						created_at: "2026-06-08T00:00:00.000Z",
-						updated_at: "2026-06-08T00:00:00.000Z",
-						version: 1,
-					},
-				},
-				subagent: {
-					refinement_reviewer: {
-						id: "refinement_reviewer",
-						kind: "subagent",
-						title: "Refinement reviewer",
-						content: "Review proposed harness edits for scope, evidence, and unintended behavior.",
-						path: "review",
-						reference: {},
-						arguments: {},
-						metadata: {},
-						source: "refine",
-						created_at: "2026-06-08T00:00:00.000Z",
-						updated_at: "2026-06-08T00:00:00.000Z",
-						version: 1,
-					},
-				},
-			},
-			refinements: [
-				{
-					id: "refine_1",
-					trigger: "Observed validation miss",
-					changes: ["create memory:validation"],
-					evidence: "manual test",
-					outcome: "Future runs should name npm run check.",
-					created_at: "2026-06-08T00:00:00.000Z",
-				},
-			],
-		};
-
-		const prompt = buildSystemPrompt({
-			selectedTools: ["ipython"],
-			contextFiles: [],
-			skills: [pythonSkill("refine"), pythonSkill("agent-message"), pythonSkill("agent-observe")],
-			cwd: "/repo",
-			messagesPath: "/repo/.pi/sessions/session.jsonl",
-			harnessState,
-		});
-
-		expect(prompt).toContain("# Continual Harness State");
-		expect(prompt).toContain("Local continual harness entries belong to this Prime Agent session");
-		expect(prompt).toContain("The continual harness entries below are compact summaries, not full descriptions");
-		expect(prompt).toContain("Use global continual harness refinement only for stable cross-session lessons");
-		expect(prompt).toContain("When to call `await refine.run()`");
-		expect(prompt).toContain("Call contract: read each installed Python skill's SKILL.md");
-		expect(prompt).toContain("Continual harness skill entries are Python REPL skills");
-		expect(prompt).toContain("Spawn a continual harness subagent spec by composing a concise task prompt");
-		expect(prompt).toContain("handle = await rlm('sub-task')");
-		expect(prompt).toContain("admission returns immediately");
-		expect(prompt).toContain("never the child's answer");
-		expect(prompt).toContain("receiver_role='parent'");
-		expect(prompt).toContain("await rlm.list_subagents()");
-		expect(prompt).toContain("receiver_role='child'");
-		expect(prompt).not.toContain("asyncio.create_task(rlm('sub-task'))");
-		expect(prompt).not.toContain("asyncio.gather(rlm('task1'), rlm('task2'))");
-		expect(prompt).toContain("after a repeated failure");
-		expect(prompt).toContain("a reusable tactic emerges");
-		expect(prompt).toContain("a repeated delegation role should become a subagent spec");
-		expect(prompt).toContain("a repeated procedure should become a skill");
-		expect(prompt).toContain("a durable fact/preference should become a memory");
-		expect(prompt).toContain("a narrow behavioral policy should become a prompt addendum");
-		expect(prompt).toContain("validation shows a continual harness entry is wrong");
-		expect(prompt).toContain("[global:focused_edits] Focused edits (policy, v1)");
-		expect(prompt).toContain("[global:validation] Validation (repo/prime-agent, v2): Run `npm run check`");
-		expect(prompt).toContain("[global:review_refinement] Review refinement (quality, v1)");
-		expect(prompt).toContain("[global:refinement_reviewer] Refinement reviewer (review, v1)");
-		expect(prompt).toContain("recent refinements: 1");
-		expect(prompt).toContain("[refine_1] Observed validation miss: create memory:validation");
-		expect(prompt.indexOf("# Continual Harness State")).toBeGreaterThan(prompt.indexOf("Conversation log:"));
-	});
-
-	test("keeps injected harness context compact", () => {
-		const longContent = "x".repeat(500);
-		const memoryEntries: HarnessState["entries"]["memory"] = {};
-		for (let i = 0; i < 8; i++) {
-			memoryEntries[`memory_${i}`] = {
-				id: `memory_${i}`,
-				kind: "memory",
-				title: `Memory ${i}`,
-				content: longContent,
-				path: "overflow",
-				reference: {},
-				arguments: {},
-				metadata: {},
-				source: "refine",
-				created_at: "2026-06-08T00:00:00.000Z",
-				updated_at: "2026-06-08T00:00:00.000Z",
-				version: 1,
-			};
-		}
-		const harnessState: HarnessState = {
-			schema: 1,
-			entries: {
-				prompt: {},
-				memory: memoryEntries,
-				skill: {},
-				subagent: {},
-			},
-			refinements: [],
-		};
-
-		const prompt = buildSystemPrompt({
-			selectedTools: ["ipython"],
-			contextFiles: [],
-			skills: [],
-			cwd: "/repo",
-			harnessState,
-		});
-
-		expect(prompt).toContain("memory: 8");
-		expect(prompt).toContain("- +2 more memory entries");
-		expect(prompt).toContain(`${"x".repeat(177)}...`);
-		expect(prompt).not.toContain(longContent);
-	});
-
 	test("uses the model-agnostic rlm harness prompt", () => {
 		const prompt = buildSystemPrompt({
 			selectedTools: ["ipython"],
@@ -432,146 +259,6 @@ describe("buildSystemPrompt", () => {
 		expect(prompt).toContain("session_dir");
 		expect(prompt).toContain("agent_observe");
 		expect(prompt).toContain("restricted to your parent, siblings, and direct children");
-	});
-
-	test("omits ipython-only subagent guidance when ipython is inactive", () => {
-		const harnessState: HarnessState = {
-			schema: 1,
-			entries: {
-				prompt: {},
-				memory: {},
-				skill: {},
-				subagent: {
-					worker: {
-						id: "worker",
-						kind: "subagent",
-						title: "Worker",
-						content: "Review a self-contained task and report findings.",
-						path: "review",
-						reference: {},
-						arguments: {},
-						metadata: {},
-						source: "refine",
-						created_at: "2026-06-08T00:00:00.000Z",
-						updated_at: "2026-06-08T00:00:00.000Z",
-						version: 1,
-					},
-				},
-			},
-			refinements: [],
-		};
-		const prompt = buildSystemPrompt({
-			selectedTools: ["bash"],
-			contextFiles: [],
-			skills: [],
-			cwd: "/repo",
-			messagesPath: "/repo/.pi/sessions/session.jsonl",
-			harnessState,
-		});
-
-		expect(prompt).toContain("You are a general purpose agent that uses code to solve tasks.");
-		expect(prompt).toContain("# Continual Harness State");
-		expect(prompt).toContain("Call contract: use installed skills as shell commands");
-		expect(prompt).toContain("subagent: 1");
-		expect(prompt).not.toContain("persistent Python REPL");
-		expect(prompt).not.toContain("Default to non-blocking subagents");
-		expect(prompt).not.toContain("agent_observe.list_agents");
-		expect(prompt).not.toContain("asyncio.create_task");
-		expect(prompt).not.toContain("await <skill_import>");
-		expect(prompt).not.toContain("await refine.run()");
-	});
-
-	test("omits shell guidance from harness state when shell is inactive", () => {
-		const harnessState: HarnessState = {
-			schema: 1,
-			entries: {
-				prompt: {},
-				memory: {},
-				skill: {},
-				subagent: {
-					worker: {
-						id: "worker",
-						kind: "subagent",
-						title: "Worker",
-						content: "Review a self-contained task and report findings.",
-						path: "review",
-						reference: {},
-						arguments: {},
-						metadata: {},
-						source: "refine",
-						created_at: "2026-06-08T00:00:00.000Z",
-						updated_at: "2026-06-08T00:00:00.000Z",
-						version: 1,
-					},
-				},
-			},
-			refinements: [],
-		};
-		const prompt = buildSystemPrompt({
-			selectedTools: ["edit"],
-			contextFiles: [],
-			skills: [],
-			cwd: "/repo",
-			messagesPath: "/repo/.pi/sessions/session.jsonl",
-			harnessState,
-		});
-
-		expect(prompt).toContain("# Continual Harness State");
-		expect(prompt).toContain("without the Python REPL or shell access");
-		expect(prompt).not.toContain("use installed skills as shell commands");
-		expect(prompt).not.toContain("<skill_import> ...");
-		expect(prompt).not.toContain("asyncio.create_task");
-		expect(prompt).not.toContain("await <skill_import>");
-		expect(prompt).not.toContain("await refine.run()");
-	});
-
-	test("custom prompt override bypasses the rlm harness body", () => {
-		const harnessState: HarnessState = {
-			schema: 1,
-			entries: {
-				prompt: {},
-				memory: {
-					custom_memory: {
-						id: "custom_memory",
-						kind: "memory",
-						title: "Custom memory",
-						content: "Custom prompts still receive harness state.",
-						path: "custom",
-						reference: {},
-						arguments: {},
-						metadata: {},
-						source: "refine",
-						created_at: "2026-06-08T00:00:00.000Z",
-						updated_at: "2026-06-08T00:00:00.000Z",
-						version: 1,
-					},
-				},
-				skill: {},
-				subagent: {},
-			},
-			refinements: [],
-		};
-
-		const prompt = buildSystemPrompt({
-			customPrompt: "custom body",
-			selectedTools: ["ipython"],
-			appendSystemPrompt: "custom append",
-			contextFiles: [],
-			skills: [],
-			cwd: "/repo",
-			harnessState,
-		});
-
-		expect(prompt).toContain("custom body");
-		expect(prompt).toContain("# Continual Harness State");
-		expect(prompt).toContain("[global:custom_memory] Custom memory (custom, v1)");
-		expect(prompt).not.toContain("# IPython Kernel Guidance");
-		expect(prompt).not.toContain("You are a general purpose agent that uses code to solve tasks.");
-		expect(prompt.indexOf("Current working directory: /repo")).toBeLessThan(
-			prompt.indexOf("# Continual Harness State"),
-		);
-		expect(prompt.indexOf("Current working directory: /repo")).toBeLessThan(prompt.indexOf("custom append"));
-		expect(prompt.indexOf("# Continual Harness State")).toBeLessThan(prompt.indexOf("custom append"));
 	});
 
 	test("adds child reply doctrine to custom prompts when messaging is available", () => {
@@ -687,5 +374,33 @@ describe("createIpythonToolDefinition", () => {
 		const codeDescription =
 			"description" in codeSchema && typeof codeSchema.description === "string" ? codeSchema.description : "";
 		expect(codeDescription).toContain("target project's own environment");
+	});
+
+	test("buildSystemPrompt omits Continual Harness State even when harnessState is provided", () => {
+		const harnessState: HarnessState = {
+			schema: 1,
+			entries: {
+				memory: {
+					validation: {
+						id: "validation",
+						kind: "memory",
+						title: "Validation",
+						content: "Run npm run check after code changes.",
+						path: "repo",
+						reference: {},
+						arguments: {},
+						metadata: {},
+						source: "refine",
+						created_at: "2026-06-08T00:00:00.000Z",
+						updated_at: "2026-06-08T00:00:00.000Z",
+						version: 1,
+					},
+				},
+			},
+			refinements: [],
+		};
+		const prompt = buildSystemPrompt({ selectedTools: ["ipython"], cwd: "/repo", harnessState });
+		expect(prompt).not.toContain("# Continual Harness State");
+		expect(prompt).not.toContain("validation");
 	});
 });
