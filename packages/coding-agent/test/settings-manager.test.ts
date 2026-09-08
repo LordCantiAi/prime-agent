@@ -228,6 +228,7 @@ describe("SettingsManager", () => {
 				turnInterval: 25,
 				compact: true,
 				cooldownMs: 20 * 60_000,
+				reviewer: "model",
 			});
 
 			writeFileSync(join(agentDir, "settings.json"), JSON.stringify({ autoRefine: { enabled: false } }));
@@ -274,7 +275,31 @@ describe("SettingsManager", () => {
 			expect(settings.turnInterval).toBe(5);
 			expect(settings.cooldownMs).toBe(1000);
 		});
+
+		it("defaults the cadence reviewer to model (LLM review gate on)", () => {
+			const manager = SettingsManager.create(projectDir, agentDir);
+			expect(manager.getAutoRefineSettings().reviewer).toBe("model");
+		});
+
+		it("honors an explicit reviewer = off (skip the LLM review gate)", () => {
+			writeFileSync(
+				join(agentDir, "settings.json"),
+				JSON.stringify({ autoRefine: { reviewer: "off", turnInterval: 1 } }),
+			);
+			const manager = SettingsManager.create(projectDir, agentDir);
+			const settings = manager.getAutoRefineSettings();
+			expect(settings.reviewer).toBe("off");
+			expect(settings.turnInterval).toBe(1);
+		});
+
+		it("rejects an unknown reviewer value back to the model default", () => {
+			writeFileSync(join(agentDir, "settings.json"), JSON.stringify({ autoRefine: { reviewer: "sometimes" } }));
+			const manager = SettingsManager.create(projectDir, agentDir);
+			expect(manager.getAutoRefineSettings().reviewer).toBe("model");
+		});
 	});
+
+
 
 	describe("recentModels", () => {
 		it("records most-recently-used first, dedupes, and persists", async () => {

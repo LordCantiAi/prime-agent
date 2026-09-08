@@ -650,6 +650,77 @@ describe("Serialized background planning during tools", () => {
 		expect(internals._applyRefine).toHaveBeenCalledTimes(1);
 		expect(internals._assistantTurnsSinceAutoRefine).toBe(0);
 	});
+	it("reviewer=off plans+applies at the cadence without invoking the LLM reviewer", async () => {
+		const reviewer = vi.fn(async () => ({
+			shouldRefine: true,
+			rationale: "should not be called when reviewer is off",
+		}));
+		const harness = await createHarness({
+			persistSession: true,
+			serializedRefine: true,
+			// reviewer explicitly disabled on the cadence + eager every-turn interval
+			settings: { autoRefine: { enabled: true, turnInterval: 1, cooldownMs: 0, reviewer: "off" } },
+			autoRefineReviewer: reviewer,
+		});
+		harnesses.push(harness);
+		const internals = harness.session as unknown as SerializedInternals;
+
+		vi.spyOn(internals, "_planRefine").mockResolvedValue({ id: "off-review-plan", proposal: { edits: [] } });
+		vi.spyOn(internals, "_applyRefine").mockResolvedValue(emptyRefinementResult());
+
+		// Simulate message_end for the serialized background planning trigger.
+		internals._assistantTurnsSinceAutoRefine++;
+		(
+			internals as unknown as { _maybeStartSerializedBackgroundPlan: () => void }
+		)._maybeStartSerializedBackgroundPlan();
+
+		// Wait a tick for background planning to start/finish.
+		await new Promise<void>((resolve) => setTimeout(resolve, 30));
+
+		// The review gate must be skipped entirely when reviewer=off.
+		expect(reviewer).not.toHaveBeenCalled();
+		expect(internals._planRefine).toHaveBeenCalledTimes(1);
+
+		// The checkpoint applies the background plan (no second review/plan).
+		await internals._shouldStopAfterTurn(makeCtx("boundary reviewer-off"));
+		expect(internals._applyRefine).toHaveBeenCalledTimes(1);
+		expect(internals._assistantTurnsSinceAutoRefine).toBe(0);
+	});
+	it("reviewer=off is not throttled by the post-review cooldown (cadence is the throttle)", async () => {
+		const reviewer = vi.fn(async () => ({ shouldRefine: true, rationale: "unused" }));
+		const harness = await createHarness({
+			persistSession: true,
+			serializedRefine: true,
+			// Large cooldown + eager interval + reviewer off: cooldown must NOT gate.
+			settings: { autoRefine: { enabled: true, turnInterval: 1, cooldownMs: 30 * 60_000, reviewer: "off" } },
+			autoRefineReviewer: reviewer,
+		});
+		harnesses.push(harness);
+		const internals = harness.session as unknown as SerializedInternals;
+
+		// Force a recent "review" timestamp far in the past-less sense for our
+		// purpose it is ignored anyway because reviewer is off.
+		internals._lastAutoRefineReviewAt = Date.now() - 1000;
+		vi.spyOn(internals, "_planRefine").mockResolvedValue({ id: "no-cooldown-plan", proposal: { edits: [] } });
+		vi.spyOn(internals, "_applyRefine").mockResolvedValue(emptyRefinementResult());
+
+		internals._assistantTurnsSinceAutoRefine++;
+		(
+			internals as unknown as { _maybeStartSerializedBackgroundPlan: () => void }
+		)._maybeStartSerializedBackgroundPlan();
+
+		await new Promise<void>((resolve) => setTimeout(resolve, 30));
+
+		// Cooldown (~30m) is larger than what a normal run would allow, but
+		// because the reviewer is off the cadence still plans.
+		expect(reviewer).not.toHaveBeenCalled();
+		expect(internals._planRefine).toHaveBeenCalledTimes(1);
+
+		await internals._shouldStopAfterTurn(makeCtx("boundary no-cooldown"));
+		expect(internals._applyRefine).toHaveBeenCalledTimes(1);
+	});
+
+
 });
 
 describe("PR #503 model persistence regression", () => {
@@ -1511,7 +1582,7 @@ describe("Serialized refine review-fix regressions", () => {
 		});
 		harnesses.push(harness);
 		const internals = harness.session as unknown as SerializedInternals;
-		const settings = { enabled: true, compact: true, turnInterval: 1, cooldownMs: 60_000 };
+		const settings = { enabled: true, compact: true, turnInterval: 1, cooldownMs: 60_000, reviewer: "model" as const };
 		vi.spyOn(harness.session.settingsManager, "getAutoRefineSettings")
 			.mockReturnValueOnce(settings)
 			.mockReturnValue({ ...settings, cooldownMs: 0 });

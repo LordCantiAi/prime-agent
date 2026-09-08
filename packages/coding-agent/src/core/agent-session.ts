@@ -988,6 +988,28 @@ const RLM_MAX_DEPTH_STATE_CUSTOM_TYPE = "rlm_max_depth_state";
 function noopRlmChildAbort(): void {}
 function noopRlmChildEventUnsubscribe(): void {}
 
+/**
+ * Base instructions for cadence-triggered auto-refinement when the separate
+ * LLM reviewer is disabled (autoRefine.reviewer = "off"). The refine planner
+ * still decides whether to emit edits; this only seeds the cadence context
+ * that normally would have come from a review.
+ */
+const AUTO_REFINE_NO_REVIEW_INSTRUCTIONS =
+	"Automatic refine at the configured auto-refine cadence with the reviewer disabled. " +
+	"Only create/update/delete local harness entries when there is clear, non-speculative evidence " +
+	"in the recent trajectory that will help this session (or its subagents) continue. " +
+	"Prefer an empty edits array over one-off or speculative memories. Do not promote anything global unless explicitly requested.";
+
+/**
+ * Sentinel approved review for cadence runs with autoRefine.reviewer = "off".
+ * Reused only for its shouldRefine=true signal and bookkeeping; the real
+ * instructions come from AUTO_REFINE_NO_REVIEW_INSTRUCTIONS.
+ */
+const AUTO_REFINE_NO_REVIEW_APPROVED: AutoRefineReview = {
+	shouldRefine: true,
+	rationale: "Automatic cadence with the review gate disabled.",
+};
+
 function autoRefineInstructions(reason: AutoRefineReason, review: AutoRefineReview): string {
 	const detail = review.instructions
 		? `
@@ -2682,19 +2704,27 @@ export class AgentSession {
 		if (this._assistantTurnsSinceAutoRefine < settings.turnInterval) {
 			return;
 		}
+		const reviewerOff = settings.reviewer === "off";
 		const nowMs = Date.now();
 		const underCooldown =
 			this._lastAutoRefineReviewAt > 0 && nowMs - this._lastAutoRefineReviewAt < settings.cooldownMs;
-		if (underCooldown) {
+		// When the auto-refine reviewer is disabled, the cadence itself is the
+		// throttle (turnInterval); skip the post-run cooldown that exists to
+		// avoid hammering the LLM reviewer. A disabled reviewer makes every-turn
+		// cadence possible without cooldown silently suppressing it.
+		if (!reviewerOff && underCooldown) {
 			return;
 		}
 
 		const refineAbort = new AbortController();
 		this._refineAbortController = refineAbort;
 		const branchVersion = this._autoRefineBranchVersion;
-		// Pass empty options — _runBackgroundPlan derives instructions from
-		// the review result for interval-triggered auto-refine.
-		this._serializedPlanInFlight = this._runBackgroundPlan({}, refineAbort, branchVersion);
+		// reviewer=off skips the review gate (skipReview=true) and plans a small
+		// autonomous refine directly, like an explicit refine.run. An edit is
+		// proposed/ applied only when the plan finds real evidence.
+		const skipReview = reviewerOff;
+		const planOptions = reviewerOff ? { instructions: AUTO_REFINE_NO_REVIEW_INSTRUCTIONS } : {};
+		this._serializedPlanInFlight = this._runBackgroundPlan(planOptions, refineAbort, branchVersion, skipReview);
 	}
 
 	/**
@@ -8114,8 +8144,12 @@ export class AgentSession {
 		}
 
 		const nowMs = Date.now();
+		// When the reviewer is disabled the cadence (turnInterval) is the only
+		// intended throttle; cooldown exists to stop re-hammering the LLM reviewer,
+		// so it does not gate a reviewer-off cadence.
+		const reviewerOff = settings.reviewer === "off";
 		const underCooldown =
-			this._lastAutoRefineReviewAt > 0 && nowMs - this._lastAutoRefineReviewAt < settings.cooldownMs;
+			!reviewerOff && this._lastAutoRefineReviewAt > 0 && nowMs - this._lastAutoRefineReviewAt < settings.cooldownMs;
 
 		const pendingReview = this._pendingAutoRefineReview;
 		if (pendingReview) {
@@ -8154,6 +8188,25 @@ export class AgentSession {
 		this._autoRefineInProgress = true;
 		const turnsSinceLastReview = this._assistantTurnsSinceAutoRefine;
 		const branchVersion = this._autoRefineBranchVersion;
+		if (settings.reviewer === "off") {
+			// Reviewer disabled: skip the separate LLM review and run an
+			// autonomous cadence refine directly. The planner still decides
+			// whether any edit is warranted (empty edits on no evidence).
+			if (this._shouldSkipAutoRefineForActiveAgent()) {
+				this._turnIntervalAutoRefinePending = true;
+			} else {
+				await this._runApprovedRefine(
+					reason,
+					AUTO_REFINE_NO_REVIEW_APPROVED,
+					AUTO_REFINE_NO_REVIEW_INSTRUCTIONS,
+				);
+			}
+			// _runApprovedRefine clears _autoRefineInProgress in its own finally.
+			// The deferral path above does not re-enter refine, so clear it here
+			// to avoid leaking in-progress on the active-agent skip.
+			this._autoRefineInProgress = false;
+			return;
+		}
 		const reviewAbort = new AbortController();
 		this._autoRefineReviewAbort = reviewAbort;
 		let approvedReview: AutoRefineReview | undefined;
@@ -8202,10 +8255,15 @@ export class AgentSession {
 		}
 	}
 
-	private async _runApprovedRefine(reason: AutoRefineReason, review: AutoRefineReview): Promise<void> {
+	private async _runApprovedRefine(
+		reason: AutoRefineReason,
+		review: AutoRefineReview,
+		instructionOverride?: string,
+	): Promise<void> {
 		this._autoRefineInProgress = true;
 		try {
-			await this.refine({ instructions: autoRefineInstructions(reason, review) }, { trigger: "auto" });
+			const instructions = instructionOverride ?? autoRefineInstructions(reason, review);
+			await this.refine({ instructions }, { trigger: "auto" });
 			this._pendingAutoRefineReview = undefined;
 			this._turnIntervalAutoRefinePending = false;
 			this._lastAutoRefineReviewAt = Date.now();

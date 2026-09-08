@@ -26,7 +26,17 @@ export interface AutoRefineSettings {
 	turnInterval?: number; // default: 25 assistant turns
 	compact?: boolean; // default: true
 	cooldownMs?: number; // default: 20 minutes
+	reviewer?: "model" | "off"; // default: "model" — run an LLM review to decide whether to refine on each cadence; "off" skips the review and plans (an edit is only applied when there is evidence)
 }
+
+
+export type AutoRefineSettingsResolved = {
+	enabled: boolean;
+	turnInterval: number;
+	compact: boolean;
+	cooldownMs: number;
+	reviewer: "model" | "off";
+};
 
 export interface ProviderRetrySettings {
 	timeoutMs?: number; // SDK/provider request timeout in milliseconds
@@ -902,9 +912,10 @@ export class SettingsManager {
 		};
 	}
 
-	getAutoRefineSettings(): { enabled: boolean; turnInterval: number; compact: boolean; cooldownMs: number } {
+	getAutoRefineSettings(): AutoRefineSettingsResolved {
 		const turnInterval = this.settings.autoRefine?.turnInterval;
 		const cooldownMs = this.settings.autoRefine?.cooldownMs;
+		const reviewer = this.settings.autoRefine?.reviewer;
 		return {
 			enabled: this.settings.autoRefine?.enabled ?? true,
 			turnInterval: Math.max(
@@ -916,6 +927,7 @@ export class SettingsManager {
 				0,
 				typeof cooldownMs === "number" && Number.isFinite(cooldownMs) ? cooldownMs : 20 * 60_000,
 			),
+			reviewer: reviewer === "off" ? "off" : "model",
 		};
 	}
 
