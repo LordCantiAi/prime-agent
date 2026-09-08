@@ -157,3 +157,34 @@ This is the cache-lean property the plan smoke asked for, reproduced with the ca
 correctly demonstrates that a changing/moving head destroys caching, reinforcing plan v4's stable-head
 design.) Combined with the persisted-turn AgentSession cadence tests (74 green) confirming the cadence
 fires/applies at turnInterval=1, Mechanism-A's smoke is validated live on Canti.
+
+
+## LIVE A/B cache objective test (Canti via a forward proxy) - PASS 2026-09-08
+Objective: on new turns that change state, cache hits must climb AND the whole prompt must NOT be
+reprocessed because of a state change. Measured through a local HTTP proxy in front of the real canti
+endpoint (OpenAI-completions usage.prompt_tokens_details.cached_tokens is the provider cache ledger).
+
+CONFIG A (plan v4): byte-stable system prompt; working state delivered ONLY as appended tail messages
+per turn (an "assistant" message carrying a [harness delta]). Prior messages never rewritten.
+  t1: prompt=56  cached=0   miss=56
+  t2: prompt=91  cached=52  miss=39
+  t3: prompt=126 cached=87  miss=39
+  t4: prompt=161 cached=122 miss=39
+  t5: prompt=196 cached=157 miss=39
+=> After a cold first turn, cache hits climb monotonically (+35/turn == the freshly appended state-delta
+   bytes) while cache-MISS stays FLAT at 39/turn. The entire stable prefix (system + all prior turns +
+   prior deltas) is served from cache; only the newly-appended state-change tail is processed. WIN.
+
+CONFIG B (counterfactual / naive): state injected by REWRITING the system prompt head each turn.
+  t1..t5: cached=0 every turn, prompt=49 each, miss=49 every turn.
+=> Changing the head makes the WHOLE prompt a cache miss every single turn. Full reprocess per state
+change. Confirms why plan-v4's stable-head + append-tail delta is required.
+
+Mechanism in code (verified): AgentSession._recordRefinementOutcome appends the applied harness delta
+via agent.state.messages.push(delta) (append-only tail, display:false, forwarded by convertToLlm) - it
+never rewrites or reorders prior messages, and the system prompt is rebuilt WITHOUT harness state under
+plan v4 (cache head immobile). Snapshot only at cold boundaries (session start / post-compaction).
+
+Test method: local HTTP proxy on kermit logged each request (byte length, message count) and the
+provider-returned cached_tokens; upstream = canti.muppetlabs:8081. Requests were real OpenAI-completions
+chat calls shaped exactly like product turns (stable system + append-only convo + state-change tail).
