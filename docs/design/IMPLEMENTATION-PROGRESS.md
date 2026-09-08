@@ -93,3 +93,20 @@ serialized-refine/refine-extension suites + 207 in daemon-mode/rpc/recursion sui
 
 TDD conformance: unit tests for gate, snapshot/delta messages, mapper, and system-prompt non-injection
 were written first and pass; integration suites (which exercise the seams) also pass.
+
+## Independent reviews + reconciliation (2026-date)
+Two independent reviews were run on branch implement/v4-cache-stable-harness:
+- Canti (architecture): APPROVE-WITH-FIXES (docs/design/review-canti-architecture.md)
+- Statler (code): APPROVE-WITH-FIXES (docs/design/review-statler-code.md) - found a real bug.
+Reconciled fixes (commit ff743a8) + review docs (96868d1):
+  1. BUG (Statler I2): side-question forwarded parent.transformContext, which would consume the
+     parent's armed cold-boundary harness snapshot. Fixed: side agent transformContext -> undefined
+     (ephemeral; no snapshot needed).
+  2. Delta lines now carry the spec "[harness]" prefix (Statler).
+  3. Snapshot id uses crypto.randomUUID() (Canti) instead of Date.now().
+  4. HarnessDeltaEntry.op narrowed to update|delete (rollback handled per spec via update/delete).
+Typecheck clean; gate/messages/system-prompt/compaction/serialized-refine suites green.
+Both reviewers noted remaining test-coverage gaps (true end-to-end model-request head-snapshot
+capture needs SDK-level scaffolding beyond the suite harness): tracked as a follow-up.
+Next: rebuild + deploy reconciled branch to Kermit (clean target) for a cost-free --print --no-session
+smoke test.
