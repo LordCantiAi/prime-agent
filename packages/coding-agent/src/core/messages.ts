@@ -542,7 +542,7 @@ export interface HarnessSnapshotDetails {
 }
 
 export interface HarnessDeltaEntry {
-	op: "create" | "update" | "delete" | "rollback";
+	op: "update" | "delete";
 	kind: string;
 	id: string;
 	/** self-describing current line (e.g. `kind "id" = value`, or the removal/override marker). */
@@ -593,7 +593,7 @@ export function harnessDeltaEntriesFromAppliedEdits(edits: readonly AppliedRefin
 			return { op: "update", kind, id, line: `${kind} "${id}" = ${summary}` };
 		}
 		// delete: nothing new to give recency; emit override marker.
-		return { op: "delete", kind, id, line: `${kind} "${id}" no longer valid (removed)` };
+		return { op: "delete", kind, id, line: `[harness] ${kind} "${id}" no longer valid (removed)` };
 	});
 }
 

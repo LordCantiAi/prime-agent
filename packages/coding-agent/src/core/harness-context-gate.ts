@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 /**
  * Cache-stable Continual Harness boundary gate (plan v4).
  * AgentSession arms this with the computed harness snapshot text at a cold
@@ -36,5 +37,5 @@ export function maybePrependHarnessSnapshot(target: object, messages: AgentMessa
 	if (text === undefined || text.trim().length === 0) {
 		return messages;
 	}
-	return [createHarnessSnapshotMessage(text, { snapshotId: `head-${Date.now()}` }), ...messages];
+	return [createHarnessSnapshotMessage(text, { snapshotId: randomUUID() }), ...messages];
 }

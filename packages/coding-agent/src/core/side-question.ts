@@ -95,7 +95,13 @@ export function startSideQuestion(
 			tools: [],
 		},
 		convertToLlm: parent.convertToLlm,
-		transformContext: parent.transformContext,
+		// Plan v4: do NOT forward the parent's transformContext here. That closure prepends a
+		// cold-boundary harness_snapshot armed against the PARENT agent; a side-question's first
+		// request would otherwise consume (steal) the parent's snapshot, leaving the main agent's
+		// first turn without its harness head. Side questions are ephemeral/excluded from history,
+		// so a side question needs no snapshot (and losing extension-only context transforms here is
+		// an acceptable, deliberate trade-off for correctness).
+		transformContext: undefined,
 		// Side questions are excluded from session history; their calls carry no provenance.
 		streamFn: unwrapSemanticEdgeStreamFn(parent.streamFn),
 		getApiKey: parent.getApiKey,

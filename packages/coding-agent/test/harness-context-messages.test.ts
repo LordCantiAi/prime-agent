@@ -35,7 +35,7 @@ describe("harness context messages (plan v4: model-visible, cache-stable)", () =
 		expect(snap[0].content).toEqual([{ type: "text", text: "snapshot-body" }]);
 
 		const delta = convertToLlm([
-			createHarnessDeltaMessage([{ op: "create", kind: "memory", id: "a", line: 'memory "a" = x' }]),
+			createHarnessDeltaMessage([{ op: "update", kind: "memory", id: "a", line: '[harness] memory "a" = x' }]),
 		]);
 		expect(delta).toHaveLength(1);
 		expect(delta[0].role).toBe("user");
