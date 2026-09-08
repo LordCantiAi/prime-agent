@@ -66,3 +66,15 @@ HEAD (not the transcript tail).
 Three slices already committed+green: no-harness-in-system-prompt; snapshot+delta message models +
 convertToLlm forward; per-refinement delta emission. This last slice (cold-boundary snapshot HEAD
 injection via agent-loop) is a distinct cross-package change best done as its own focused unit.
+
+## Final-seam pinning (this run)
+The root request-assembly transform hook is sdk.ts:318 `transformContext` (greops to extensions only).
+To deliver the cold-boundary HEAD snapshot entirely in coding-agent:
+  - extend sdk.ts transformContext to PREPEND createHarnessSnapshotMessage(formatHarnessStateForPrompt(currentState))
+    to the pre-convertToLlm messages,
+  - gate it to fire exactly once when a "pending boundary snapshot" flag is set by the AgentSession
+    right after session start (new session, no existing) and right after a successful compaction
+    (e.g., _performCompaction success / the context-rebuild step), and cleared after one injection.
+  - This never touches the persistent transcript (snapshot lives in the in-memory model request only),
+    so compaction_outcome-last and the failed-persistence rollback tests stay green.
+Mechanism identified precisely (sdk.ts + a boundary flag on AgentSession); implementation + tests remain.
