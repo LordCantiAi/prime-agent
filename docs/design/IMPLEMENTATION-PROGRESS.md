@@ -46,3 +46,23 @@ requires. Attempted wiring was reverted; tree is green (195 tests incl. compacti
 Correct next step: locate where a post-compaction context rebuild seeds its head (the compaction-summary /
 kept-tail seed), and attach the snapshot there so it does not disturb the compaction_outcome ordering or the
 rollback contract. Session-start snapshot uses the same future seam.
+
+## Exact mechanism for the remaining snapshot-head slice (found 2026-09-08)
+The model request assembly single funnel is packages/agent/src/agent-loop.ts:~479:
+    const llmMessages = await config.convertToLlm(messages, signal);
+coding-agent's convertToLlm already forwards harness_snapshot/harness_delta to the model.
+So the snapshot-head must be delivered by PREPENDING a fresh harness_snapshot message onto the
+pre-convertToLlm `messages` ONLY when this is the first model request after (a) a session start or
+(b) a compaction - driven by a config hook (e.g., config.transformContext at agent-loop.ts:475 or a
+"getHarnessHeadMessages" callback), and NOT by storing it in the persistent transcript (which breaks
+compaction_outcome-last + rollback tests). This keeps packages/agent generic (no harness knowledge)
+while the pi-coding-agent session supplies the current harness snapshot text via formatHarnessStateForPrompt.
+
+Required: a small "should inject snapshots at cold boundary" epoch/cursor passed through context, plus
+new packages/agent or coding-agent integration tests that drive one model request after
+session-start and after compaction and assert the provider request contains the harness snapshot
+HEAD (not the transcript tail).
+
+Three slices already committed+green: no-harness-in-system-prompt; snapshot+delta message models +
+convertToLlm forward; per-refinement delta emission. This last slice (cold-boundary snapshot HEAD
+injection via agent-loop) is a distinct cross-package change best done as its own focused unit.
