@@ -78,3 +78,18 @@ To deliver the cold-boundary HEAD snapshot entirely in coding-agent:
   - This never touches the persistent transcript (snapshot lives in the in-memory model request only),
     so compaction_outcome-last and the failed-persistence rollback tests stay green.
 Mechanism identified precisely (sdk.ts + a boundary flag on AgentSession); implementation + tests remain.
+
+## DONE: cold-boundary HEAD snapshot criterion implemented (2026-09-08)
+All four plan-v4 mechanisms are now implemented, committed and green:
+  1. No live harness in the immutable system prompt (0a73d32).
+  2. harness_snapshot + harness_delta message models; convertToLlm forwards them (23da356).
+  3. Per-refinement harness delta emission (self-describing, delete/rollback override marker) (4176ce4).
+  4. Full harness SNAPSHOT at the model request HEAD on session start and post-compaction (46739b1),
+     via a per-agent boundary gate (harness-context-gate.ts) armed by AgentSession and consumed by the
+     sdk transformContext (maybePrependHarnessSnapshot) - never persisted to the transcript, preserving
+     compaction_outcome-last and failed-persistence rollback tests.
+Verification: root tsgo --noEmit clean; 208 tests in harness/gate/system-prompt/refine/compaction/
+serialized-refine/refine-extension suites + 207 in daemon-mode/rpc/recursion suites pass, all green.
+
+TDD conformance: unit tests for gate, snapshot/delta messages, mapper, and system-prompt non-injection
+were written first and pass; integration suites (which exercise the seams) also pass.
