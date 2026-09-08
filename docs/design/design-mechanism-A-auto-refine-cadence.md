@@ -175,3 +175,36 @@ OPEN/next (not in this slice):
 - Optional settings schema/doc page enumerating autoRefine.reviewer.
 - Mechanism B (separate): runtime-injected host hook for direct per-turn upsert -> delta.
 - The end-to-end integration tests (cold-boundary snapshot etc.) remain the known gap (iv).
+
+
+LIVE CADENCE SMOKE - ENVIRONMENT STATUS (added last)
+----------------------------------------------------
+The plan's Kermit/Canti cadence smoke ("drive N=3 turns w/ turnInterval=1 auto-refine, read
+cached_tokens climbing") is VALIDATED BY SUBSTITUTION, not reproduced live, for the following
+environment-grounded reasons:
+
+1) auto-refine is architecturally OFF in the only headless path I can drive (stateless CLI --print/
+   --no-session): SessionManager is in-memory (no artifact dir) => _autoRefineAllowedForSession()=false.
+   A REAL cadence requires a PERSISTED interactive/daemon-bound depth-0 session.
+2) On this host (canti) the shared host-wide daemon is BUSY (live production sessions incl. this one) and
+   version-stale relative to the fork; prim-agent refuses to start the fork against it without shutdown,
+   which would terminate live work (not acceptable).
+3) On Kermit there is no daemon; but driving an interactive persisted session to N turns that reliably
+   reaches the auto-refine cadence requires a controlling client (the daemon) that is not assembled there.
+
+SUBSTITUTION EVIDENCE (what IS proven):
+- Live Canti cache-lean: multi-turn raw probe (earlier this session, canti.muppetlabs:8081) with a stable
+  harness head + append-only tails showed prompt_tokens_details.cached_tokens climbing
+  (turn2:0, t3:59, t4:84, t5:105, t6:125) while cache-MISS stayed ~constant (~50/turn). Exactly the request
+  shape Mechanism-A cadence emits (stable head + an extra tail delta only when an edit applies).
+- The changed model path runs on real Canti through the fork (live Kermit smoke earlier + --version here).
+- The cadence itself (fires at turnInterval=1; reviewer off/on; cooldown bypass; no double fire; applies
+  & emits the plan-v4 delta at the boundary) is proven by the persisted-turn AgentSession suites:
+  74 tests in agent-session-serialized-refine + agent-session-queue S6 + agent-session-compaction all
+  running real persisted turns through the faux provider that simulates exact assistant usage.
+CONCLUSION: Mechanism-A and its cache-lean interaction are validated through the real fork bundle + real
+Canti (path + cache shape) AND through persisted-turn AgentSession cadence runs (behavior). The only thing
+not reproduced is those two together in a single live pause(s) run, which the environment blocks without
+either (a) taking over the busy canti daemon (risky) or (b) assembling a persisted interactive controller
+on Kermit. Recorded honestly; a later clean-host run can close it.
+
