@@ -18,7 +18,7 @@ direct-write per-turn state feature) is DESIGNED but NOT implemented. See end.
 Fork repo      : git@github.com:LordCantiAi/prime-agent.git
 Working clone  : /home/jfgrissom/Repos/prime-agent-fork
 Branch         : implement/v4-cache-stable-harness
-HEAD           : 8cad53b  (sha 8cad53b89193198c4c1caec1bbcbeda426c6d090) - pushed to origin
+HEAD           : 23ebc1e  (sha 23ebc1e1f49945992d987ed1d6a81421885b0d1a) - pushed to origin
 Upstream base  : 9c8230d (PrimeIntellect-ai/prime-agent main; this fork is post #2098-partial)
 
 Design/spec docs in the FORK (authoritative):
