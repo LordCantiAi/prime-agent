@@ -9,6 +9,7 @@ import { AuthStorage } from "./auth-storage.js";
 import type { AgentAutonomousConfig } from "./autonomous.js";
 import { DEFAULT_THINKING_LEVEL } from "./defaults.js";
 import type { ExtensionRunner, LoadExtensionsResult, SessionStartEvent, ToolDefinition } from "./extensions/index.js";
+import { maybePrependHarnessSnapshot } from "./harness-context-gate.js";
 import { McpManager } from "./mcp/mcp-manager.js";
 import { convertToLlm } from "./messages.js";
 import { ModelRegistry } from "./model-registry.js";
@@ -316,9 +317,12 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 		},
 		sessionId: sessionManager.getSessionId(),
 		transformContext: async (messages) => {
+			// Plan v4: at a cold boundary (session start / post-compaction) the first model
+			// request carries a harness_snapshot at its HEAD (never persisted to transcript).
+			const next = maybePrependHarnessSnapshot(agent, messages);
 			const runner = extensionRunnerRef.current;
-			if (!runner) return messages;
-			return runner.emitContext(messages);
+			if (!runner) return next;
+			return runner.emitContext(next);
 		},
 		steeringMode: settingsManager.getSteeringMode(),
 		followUpMode: settingsManager.getFollowUpMode(),
@@ -376,6 +380,11 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 		serializedRefine: options.serializedRefine,
 		initialGoal: options.initialGoal,
 	});
+	if (!hasExistingSession) {
+		// Plan v4: a brand-new session's first model request carries a harness snapshot head.
+		session.armHarnessSnapshot();
+	}
+
 	const extensionsResult = resourceLoader.getExtensions();
 
 	return {

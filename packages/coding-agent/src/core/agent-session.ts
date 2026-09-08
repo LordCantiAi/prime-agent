@@ -160,6 +160,7 @@ import {
 	validateGoalBudget,
 	validateGoalObjective,
 } from "./goals.js";
+import { armHarnessSnapshotBoundary } from "./harness-context-gate.js";
 import type { HostRequestHandlers, KernelSentAgentMessage } from "./kernel/index.js";
 import { type RestoreResult, snapshotPathIn } from "./kernel/state-snapshot.js";
 import type { AcpMcpServerConfig } from "./mcp/acp-mcp-types.js";
@@ -207,6 +208,7 @@ import {
 	type AutoRefineReview,
 	appendGlobalRefinement,
 	applyRefinementProposal,
+	formatHarnessStateForPrompt,
 	generateRefinementId,
 	getGlobalHarnessStateDir,
 	getLocalHarnessStateDir,
@@ -7766,8 +7768,25 @@ export class AgentSession {
 		}
 		await this._syncKernelStateAfterCompaction();
 		await this._reapDeletedRlmSubagentRuntimesAfterCompaction();
-
+		// Plan v4: the next model request after a successful compaction carries a fresh
+		// harness snapshot at its HEAD (assembled into the model context by the sdk
+		// transformContext hook, never written to the persistent transcript).
+		this._armHarnessSnapshot();
 		return { summary, firstKeptEntryId, tokensBefore, details };
+	}
+
+	private _armHarnessSnapshot(): void {
+		try {
+			const text = formatHarnessStateForPrompt(this._loadMergedHarnessState());
+			armHarnessSnapshotBoundary(this.agent, text);
+		} catch {
+			// Best-effort: never let a snapshot-format/read failure fail the request.
+		}
+	}
+
+	/** @internal: called by the SDK on a brand-new session so its first model request carries a harness snapshot head. */
+	armHarnessSnapshot(): void {
+		this._armHarnessSnapshot();
 	}
 
 	private async _reapDeletedRlmSubagentRuntimesAfterCompaction(): Promise<void> {
