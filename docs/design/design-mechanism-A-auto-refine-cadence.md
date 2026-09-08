@@ -242,3 +242,15 @@ turnInterval=1, drive >=3 real prompts, and watch refine_complete events + the [
 reaching the next model request. The cadence FIRING semantics are already covered by the persisted-turn
 AgentSession suites (74 green) and the cache-lean emission shape by the live Canti monitor; this e2e run
 ties them together end-to-end.
+
+================================================================================
+TEST LEARNING (post-A/B): system-prompt the only head change is a benign DAY
+================================================================================
+Audited the served model head for per-request nondeterminism (which would break caching):
+- system-prompt.ts embeds the current date as YYYY-MM-DD (day granularity only; no time-of-day).
+  => the head is byte-stable within a calendar day; it only changes at local midnight - a rare,
+     desirable model-awareness rollover, NOT a per-state-change reprocess.
+- convertToLlm maps in order (no reorder) and drops only internal audit messages
+  (refinement_outcome, compaction_outcome, slash commands); harness_delta is forwarded and lands at
+  the tail. Stored message timestamps are fixed at creation, so append-only turns keep prior bytes
+  byte-identical. => No per-turn head churn; no code refinement forced by the A/B learning.
