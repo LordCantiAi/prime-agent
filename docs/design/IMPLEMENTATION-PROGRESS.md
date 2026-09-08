@@ -110,3 +110,16 @@ Both reviewers noted remaining test-coverage gaps (true end-to-end model-request
 capture needs SDK-level scaffolding beyond the suite harness): tracked as a follow-up.
 Next: rebuild + deploy reconciled branch to Kermit (clean target) for a cost-free --print --no-session
 smoke test.
+
+## Kermit deployment + cache-hit monitor (multi-turn, Canti) - DONE
+Deployed the reconciled fork to Kermit (clean host: no pre-existing prime-agent; node 22).
+- Fork coding-agent bundle runs end-to-end against local Canti (canti.muppetlabs:8081) - the
+  changed model path executes (headless returns the model reply).
+- Multi-turn cache monitor (5 turns, incrementing stable system/harness head with append-only
+  tails) showed cached_tokens ramp: turn2=0, turn3=59, turn4=84, turn5=105, turn6=125 while
+  cache-MISS tokens stayed ~constant (~50/turn). Confirms cache-lean: a byte-stable head means only
+  genuine new tail bytes cost miss price - the core property plan v4 targets.
+NOTE: the fork headless print prints the reply to stdout fine; on Kermit the temp agent dir + raw
+probe used local Canti (cost-free). Temp deployment left under /home/jfgrissom on Kermit
+(~/prime-agent-fork-test, ~/prime-agent-fork-test-agent) - safe to remove after review.
+
