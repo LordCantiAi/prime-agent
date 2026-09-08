@@ -572,6 +572,38 @@ export function createHarnessSnapshotMessage(text: string, opts?: { snapshotId?:
 	};
 }
 
+
+
+/**
+ * Convert an applied refinement's edits into the self-describing, cache-stable
+ * delta entries the model should see on the next request (plan v4).
+ *
+ * Rules:
+ *  - create/update -> the entry's CURRENT value line ("kind \"id\" = summary").
+ *  - delete/rollback-to-none -> an override marker naming the entry ("kind \"id\"
+ *    no longer valid (removed/rolled back)") because there is no current value for
+ *    recency to lean on. No full prior value is restated unless the edit supplies it.
+ */
+export function harnessDeltaEntriesFromAppliedEdits(edits: readonly AppliedRefinementEdit[]): HarnessDeltaEntry[] {
+	return edits.filter((e) => e.applied).map((e): HarnessDeltaEntry => {
+		const id = e.id;
+		const kind = e.kind;
+		if (e.action === "create" || e.action === "update") {
+			const summary = truncateToFirstLine(e.after?.content ?? e.content ?? "");
+			return { op: "update", kind, id, line: `${kind} "${id}" = ${summary}` };
+		}
+		// delete: nothing new to give recency; emit override marker.
+		return { op: "delete", kind, id, line: `${kind} "${id}" no longer valid (removed)` };
+	});
+}
+
+function truncateToFirstLine(value: string): string {
+	const NL = String.fromCharCode(10);
+	const first = value.split(NL)[0] || "";
+	return first.length > 140 ? first.slice(0, 140) + "…" : first;
+}
+
+
 export function createHarnessDeltaMessage(entries: HarnessDeltaEntry[]): HarnessDeltaMessage {
 	const lines = entries.map((e) => e.line).join(String.fromCharCode(10));
 	return {

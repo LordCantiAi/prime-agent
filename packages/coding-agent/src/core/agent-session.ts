@@ -175,6 +175,7 @@ import {
 	convertToLlm,
 	createAsyncBashCompletionMessage,
 	createCompactionOutcomeMessage,
+	createHarnessDeltaMessage,
 	createHeartbeatPromptMessage,
 	createRefinementOutcomeMessage,
 	createRlmChildFailureMessage,
@@ -183,6 +184,7 @@ import {
 	createSessionSlashCommandResultMessage,
 	HEARTBEAT_PROMPT_CUSTOM_TYPE,
 	HEARTBEAT_PROMPT_PREVIEW_LABEL,
+	harnessDeltaEntriesFromAppliedEdits,
 	IPYTHON_STATE_RESTORED_CUSTOM_TYPE,
 	isSessionSlashCommandMessage,
 	RLM_CHILD_FAILURE_CUSTOM_TYPE,
@@ -8492,6 +8494,30 @@ export class AgentSession {
 		this.agent.state.messages.push(message);
 		this._emit({ type: "message_start", message });
 		this._emit({ type: "message_end", message });
+
+		// Plan v4: surface the applied harness change to the model as a model-visible,
+		// self-describing delta (delete/rollback use an explicit removal marker). It rides
+		// the same message stream as the outcome but is display:false and forwarded by
+		// convertToLlm, so the next served request sees the change by recency without
+		// touching the immutable system prompt. Empty (no applied edits) => nothing.
+		const entries = harnessDeltaEntriesFromAppliedEdits(result.appliedEdits ?? []);
+		if (entries.length === 0) {
+			return;
+		}
+		const delta = createHarnessDeltaMessage(entries);
+		try {
+			this.sessionManager.appendCustomMessageEntryWithRollback(
+				delta.customType,
+				delta.content,
+				delta.display,
+				delta.details,
+			);
+		} catch {
+			this._unpersistedOutcomes.push(delta);
+		}
+		this.agent.state.messages.push(delta);
+		this._emit({ type: "message_start", message: delta });
+		this._emit({ type: "message_end", message: delta });
 	}
 
 	/**
