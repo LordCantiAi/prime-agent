@@ -38,6 +38,9 @@ export const RLM_CHILD_TERMINAL_NOTICE_CUSTOM_TYPE = "rlm_child_terminal_notice"
 export const ASYNC_BASH_COMPLETION_CUSTOM_TYPE = "async_bash_completion";
 export const ASYNC_BASH_COMPLETION_PREVIEW_LABEL = "Shell message received";
 
+export const HARNESS_SNAPSHOT_CUSTOM_TYPE = "harness_snapshot";
+export const HARNESS_DELTA_CUSTOM_TYPE = "harness_delta";
+
 export interface SessionSlashCommandDetails {
 	command: SessionSlashCommand;
 	commandEntryId?: string;
@@ -516,6 +519,88 @@ export function createHeartbeatPromptMessage(
  * - Compaction's generateSummary (for summarization)
  * - Custom extensions and tools
  */
+
+// ------------------------------------------------------------------
+// Continual Harness model-visible context (cache-stable, plan v4).
+//
+// The live continual-harness state is delivered to the model as normal
+// context (tail), never embedded in the immutable system prompt:
+//   - a full SNAPSHOT is emitted only when a cold boundary re-establishes
+//     the context (session start; post-compaction head),
+//   - per-change DELTA lines are emitted at the request-assembly boundary
+//     when harness entries are created/updated/deleted/rolled back.
+// Both are display:false (invisible to the TUI/transcript) but MUST reach
+// the model, so convertToLlm forwards them as user-role text (they are NOT
+// filtered like the internal refinement_outcome audit message).
+// ------------------------------------------------------------------
+
+export interface HarnessSnapshotDetails {
+	/** monotonic snapshot identity so replay/delta anchoring is deterministic. */
+	snapshotId: string;
+	/** raw digest text produced by formatHarnessStateForPrompt(currentState). */
+	snapshotText: string;
+}
+
+export interface HarnessDeltaEntry {
+	op: "create" | "update" | "delete" | "rollback";
+	kind: string;
+	id: string;
+	/** self-describing current line (e.g. `kind "id" = value`, or the removal/override marker). */
+	line: string;
+}
+
+export interface HarnessDeltaDetails {
+	entries: HarnessDeltaEntry[];
+}
+
+export interface HarnessSnapshotMessage extends CustomMessage<HarnessSnapshotDetails> {
+	customType: typeof HARNESS_SNAPSHOT_CUSTOM_TYPE;
+}
+
+export interface HarnessDeltaMessage extends CustomMessage<HarnessDeltaDetails> {
+	customType: typeof HARNESS_DELTA_CUSTOM_TYPE;
+}
+
+export function createHarnessSnapshotMessage(text: string, opts?: { snapshotId?: string }): HarnessSnapshotMessage {
+	return {
+		role: "custom",
+		customType: HARNESS_SNAPSHOT_CUSTOM_TYPE,
+		content: text,
+		display: false,
+		details: { snapshotId: opts?.snapshotId ?? cryptoRandomId(), snapshotText: text },
+		timestamp: Date.now(),
+	};
+}
+
+export function createHarnessDeltaMessage(entries: HarnessDeltaEntry[]): HarnessDeltaMessage {
+	const lines = entries.map((e) => e.line).join(String.fromCharCode(10));
+	return {
+		role: "custom",
+		customType: HARNESS_DELTA_CUSTOM_TYPE,
+		content: lines,
+		display: false,
+		details: { entries },
+		timestamp: Date.now(),
+	};
+}
+
+export function isHarnessContextMessage(message: unknown): boolean {
+	if (!message || typeof message !== "object") return false;
+	const m = message as { customType?: unknown };
+	return m.customType === HARNESS_SNAPSHOT_CUSTOM_TYPE || m.customType === HARNESS_DELTA_CUSTOM_TYPE;
+}
+
+function cryptoRandomId(): string {
+	try {
+		if (typeof globalThis !== "undefined" && (globalThis as Record<string, unknown>).crypto) {
+			return (globalThis as { crypto: { randomUUID: () => string } }).crypto.randomUUID();
+		}
+	} catch {
+		// fall through
+	}
+	return `${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
+}
+
 export function convertToLlm(messages: AgentMessage[]): Message[] {
 	return messages
 		.map((m): Message | undefined => {
