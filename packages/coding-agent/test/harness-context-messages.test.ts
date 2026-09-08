@@ -43,28 +43,44 @@ describe("harness context messages (plan v4: model-visible, cache-stable)", () =
 });
 
 import { harnessDeltaEntriesFromAppliedEdits } from "../src/core/messages.js";
+import type { AppliedRefinementEdit } from "../src/core/refinement/refinement.js";
 
 describe("harnessDeltaEntriesFromAppliedEdits", () => {
-	function edit(over) {
-		return { action: "create", kind: "memory", id: "x", applied: true, after: { content: "Run check after changes." }, ...over };
+	function entry(id: string, title: string, content: string) {
+		return {
+			id,
+			kind: "memory" as const,
+			title,
+			content,
+			path: "repo",
+			scope: "local" as const,
+			reference: {},
+			arguments: {},
+			metadata: {},
+			source: "refine",
+			created_at: "2026-06-08T00:00:00.000Z",
+			updated_at: "2026-06-08T00:00:00.000Z",
+			version: 1,
+		};
+	}
+	function edit(over: Partial<AppliedRefinementEdit> = {}): AppliedRefinementEdit {
+		return { action: "update", kind: "memory", id: "x", applied: true, after: entry("x", "X", "Run check."), ...over };
 	}
 	test("create/update become self-describing current-value lines with no override marker", () => {
-		const out = harnessDeltaEntriesFromAppliedEdits([
-			{ action: "update", kind: "memory", id: "v", applied: true, after: { content: "Run check." } },
-		]);
+		const out = harnessDeltaEntriesFromAppliedEdits([edit({ id: "v", after: entry("v", "V", "Run check.") })]);
 		expect(out).toHaveLength(1);
 		expect(out[0].op).toBe("update");
 		expect(out[0].line).toContain('memory "v" =');
 		expect(out[0].line).not.toContain("no longer valid");
 	});
 	test("delete becomes an explicit removal override marker", () => {
-		const out = harnessDeltaEntriesFromAppliedEdits([{ action: "delete", kind: "memory", id: "old", applied: true }]);
+		const out = harnessDeltaEntriesFromAppliedEdits([edit({ action: "delete", id: "old", after: undefined })]);
 		expect(out[0].op).toBe("delete");
-		expect(out[0].line).toContain('old');
+		expect(out[0].line).toContain("old");
 		expect(out[0].line).toContain("no longer valid");
 	});
 	test("unapplied edits are dropped", () => {
-		const out = harnessDeltaEntriesFromAppliedEdits([{ action: "update", kind: "memory", id: "x", applied: false }]);
+		const out = harnessDeltaEntriesFromAppliedEdits([edit({ applied: false })]);
 		expect(out).toHaveLength(0);
 	});
 });

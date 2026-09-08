@@ -380,6 +380,7 @@ describe("createIpythonToolDefinition", () => {
 		const harnessState: HarnessState = {
 			schema: 1,
 			entries: {
+				prompt: {},
 				memory: {
 					validation: {
 						id: "validation",
@@ -396,6 +397,8 @@ describe("createIpythonToolDefinition", () => {
 						version: 1,
 					},
 				},
+				skill: {},
+				subagent: {},
 			},
 			refinements: [],
 		};
