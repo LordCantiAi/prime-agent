@@ -209,3 +209,17 @@ OPEN/next (not in this slice):
 - Optional settings schema/doc page enumerating autoRefine.reviewer.
 - Mechanism B (separate): runtime-injected host hook for direct per-turn upsert -> delta.
 - The end-to-end integration tests (cold-boundary snapshot etc.) remain the known gap (iv).
+
+
+FINAL SLICE STATUS (head 795fa35): commits 9d53b73 + 795fa35. typecheck clean; bundle builds;
+384 tests green across settings + both schedulers + compaction + plan-v4 gate + queue + daemon +
+refine-extension suites. Reviewer-off validated at both scheduler gateways (serialized bg-plan +
+interactive _maybeAutoRefine), incl. cooldown-bypass and no in-progress leak. Cadence semantics are
+"candidate": the planner still returns empty edits when there is no evidence => no forced artificial
+delta; strict per-turn guaranteed writes remain Mechanism B.
+NOT yet validated on a LIVE hosted model: a cross-host Kermit/Canti run exercising auto-refine at
+turnInterval=1 + reviewer=off in a PERSISTED depth-0 session (auto-refine requires a persisted local
+harness dir; bare --print is in-memory so cadence does not arm). The earlier plan-v4 live Kermit smoke
+already proved the changed model path + cache-lean head; persisting-session cadence drive is optional
+follow-up. Mechanism B is a separate design (runtime-injected host hook) and is the remaining default-
+off/explicit deterministic path.
