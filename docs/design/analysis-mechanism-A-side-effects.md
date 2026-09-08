@@ -177,3 +177,35 @@ single-shot empirical check. Deterministic per-turn guaranteed writes stay in Me
 Store this analysis alongside the plan: docs/design/design-mechanism-A-auto-refine-cadence.md (plan),
 and docs/design/analysis-mechanism-A-side-effects.md (this). Then implement under TDD and keep the
 ~450 existing suite tests + plan-v4 gates green.
+
+============================================================
+IMPLEMENTATION STATUS (updated post-commit 9d53b73)
+============================================================
+Mechanism-A first slice SHIPPED and GREEN (all typechecks + ~535 tests across
+settings/serialized-refine/compaction/gate/messages/system-prompt/refinement/
+queue/daemon/x-config suites). Branch push done 9d53b73.
+
+SHIPPED:
+- autoRefine.reviewer  "model"|"off", default "model" (settings-manager).
+- interactive (_maybeAutoRefine) + serialized (_maybeStartSerializedBackgroundPlan)
+  honor reviewer=off: SKIP the separate LLM review, plan an autonomous cadence
+  refine directly (planner still emits edits only when evidence exists).
+- cooldown reconciliation (the D2 gotcha): reviewer=off bypasses the post-review
+  cooldown throttle so turnInterval is the SOLE cadence throttle. turnInterval=1 +
+  reviewer=off => every-turn cadence. Default reviewer stays ON => no cost surprise.
+- Serializable one test-slice fixture updated (adds reviewer:'model') and new tests:
+  settings (default/off/invalid), serialized reviewer=off (skip review, still applies
+  at checkpoint), reviewer=off-not-throttled-by-large-cooldown.
+
+D3 resolved from code (no model run needed): _autoRefineAllowedForSession() requires a
+PERSISTED (non-in-memory) session artifact dir (SessionManager.getSessionArtifactDir
+returns undefined when !this.persist). --no-session uses SessionManager.inMemory() =>
+cadence does NOT arm in single-shot print; no stray end-of-run auto-refine. Cadence
+arms only on real depth-0 sessions that persist a local harness store.
+
+OPEN/next (not in this slice):
+- interactive reviewer=off dedicated test (covered indirectly by S6 queue suite which
+  exercises interactive auto-refine default-on; add explicit case if desired).
+- Optional settings schema/doc page enumerating autoRefine.reviewer.
+- Mechanism B (separate): runtime-injected host hook for direct per-turn upsert -> delta.
+- The end-to-end integration tests (cold-boundary snapshot etc.) remain the known gap (iv).

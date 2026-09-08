@@ -719,6 +719,31 @@ describe("Serialized background planning during tools", () => {
 		await internals._shouldStopAfterTurn(makeCtx("boundary no-cooldown"));
 		expect(internals._applyRefine).toHaveBeenCalledTimes(1);
 	});
+	it("interactive gateway (reviewer=off) skips the review and runs refine directly", async () => {
+		const reviewer = vi.fn(async () => ({ shouldRefine: true, rationale: "should be skipped" }));
+		const harness = await createHarness({
+			persistSession: true,
+			serializedRefine: false, // exercise the _maybeAutoRefine interactive gateway
+			settings: { autoRefine: { enabled: true, turnInterval: 1, cooldownMs: 0, reviewer: "off" } },
+			autoRefineReviewer: reviewer,
+		});
+		harnesses.push(harness);
+		const internals = harness.session as unknown as SerializedInternals;
+
+		// Faux provider so refine (model-backed) is possible; but we stub plan+apply.
+		vi.spyOn(internals, "_planRefine").mockResolvedValue({ id: "ia-plan", proposal: { edits: [] } });
+		vi.spyOn(internals, "_applyRefine").mockResolvedValue(emptyRefinementResult());
+
+		internals._assistantTurnsSinceAutoRefine = 1; // due at interval=1
+		await internals._maybeAutoRefine("turn_interval");
+
+		// Reviewer skipped; autonomous cadence refine path ran once.
+		expect(reviewer).not.toHaveBeenCalled();
+		expect(internals._planRefine).toHaveBeenCalled();
+		expect(internals._assistantTurnsSinceAutoRefine).toBe(0);
+		expect(internals._autoRefineInProgress).toBe(false);
+	});
+
 
 
 });

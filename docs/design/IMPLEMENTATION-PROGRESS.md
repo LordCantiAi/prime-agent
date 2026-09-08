@@ -122,4 +122,20 @@ Deployed the reconciled fork to Kermit (clean host: no pre-existing prime-agent;
 NOTE: the fork headless print prints the reply to stdout fine; on Kermit the temp agent dir + raw
 probe used local Canti (cost-free). Temp deployment left under /home/jfgrissom on Kermit
 (~/prime-agent-fork-test, ~/prime-agent-fork-test-agent) - safe to remove after review.
-
+## Mechanism A slice 1: autoRefine.reviewer off switch - DONE (commit 9d53b73)
+Implemented the per-turn cadence control for plan v4 (the "A" mechanism) via a settings +
+session change:
+- autoRefine.reviewer = "model"|"off" (default "model"). getAutoRefineSettings returns reviewer;
+  other values -> model.
+- interactive + serialized interval auto-refine honor reviewer=off: skip the separate LLM review
+  and plan an autonomous cadence refine directly; the planner still emits only evidence-backed edits.
+- Cooldown reconciliation: reviewer=off bypasses the post-review cooldown throttle so turnInterval is
+  the sole cadence throttle -> turnInterval=1 + reviewer=off yields an every-turn candidate cadence.
+- Default (reviewer ON) preserves existing cost/behavior (no surprise); -> D2 gotcha fixed.
+Validation: tsgo --noEmit clean. Suites green incl settings-manager (40), agent-session-serialized-
+refine (73 with new reviewer-off + cooldown tests), agent-session-compaction (38), harness-context-
+gate/messages (5+6), system-prompt (21), refinement (59), refinement-outcome-message (5), agent-session-
+services (6), agent-session-queue (110), daemon-serialized-refine (3), serialized-refine-config (9).
+D3 from code: _autoRefineAllowedForSession needs a PERSISTED session artifact dir; --no-session uses
+SessionManager.inMemory() so cadence does not arm on bare single-shot print (no stray end-of-run call).
+Process docs: design-mechanism-A (plan) + analysis-mechanism-A-side-effects state this + open items.
